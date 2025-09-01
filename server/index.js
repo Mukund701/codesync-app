@@ -8,12 +8,30 @@ app.use(cors());
 
 const server = http.createServer(app);
 
+// --- Deployment Fix for CORS ---
+// In production, your frontend will be on a Vercel URL.
+// We need to allow this origin to connect.
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://codesync-app-five.vercel.app" // Your Vercel frontend URL
+];
+
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: function (origin, callback) {
+      // allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
     methods: ["GET", "POST"]
   }
 });
+// --- End Deployment Fix ---
+
 
 const socketIdToUsernameMap = new Map();
 
@@ -54,7 +72,6 @@ io.on('connection', (socket) => {
 
   socket.on('cursor:move', (data) => {
     const { roomId, position } = data;
-    // --- Corrected: Get username and include it in the broadcast ---
     const username = socketIdToUsernameMap.get(socket.id);
     socket.to(roomId).emit('cursor:update', { 
       userId: socket.id, 
@@ -65,7 +82,6 @@ io.on('connection', (socket) => {
 
   socket.on('selection:change', (data) => {
     const { roomId, selection } = data;
-    // --- Corrected: Get username and include it in the broadcast ---
     const username = socketIdToUsernameMap.get(socket.id);
     socket.to(roomId).emit('selection:update', { 
       userId: socket.id, 
@@ -99,7 +115,13 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = 3001;
+
+// --- Deployment Fix for Port ---
+// Use the port provided by the hosting service (e.g., Render),
+// or fall back to port 3001 for local development.
+const PORT = process.env.PORT || 3001;
+// --- End Deployment Fix ---
+
 server.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
 });
